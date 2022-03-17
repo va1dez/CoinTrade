@@ -1,7 +1,8 @@
 //API Keys
+// import fetch from 'node-fetch';
 const endpointURL = 'https://paper-api.alpaca.markets'
-const publicKey = 'PK6BDYN5QUXQIDY7022Y'
-const privateKey = 'vMvR4rjJ41sb2aLNKAXUTT46YCfA8lJMNST8FP2M'
+const publicKey = 'PKQL5PRS3SL6MSUK8JZ5'
+const privateKey = '8pxL0CHTCu5lB7DdDLQdiPeCI8PlnQxNFot2PBLk'
 const headers = {'APCA-API-KEY-ID': publicKey, 'APCA-API-SECRET-KEY' : privateKey}
 const postHeaders = {'APCA-API-KEY-ID': publicKey, 'APCA-API-SECRET-KEY' : privateKey, 'Accept' : 'application/json', 'Content-Type' : 'application/json'}
 
@@ -21,21 +22,51 @@ document.addEventListener('DOMContentLoaded', () => {
   const crypto = document.querySelector('#asset');
   const amount = document.querySelector('.input');
 
-  const notional = amount.value;
-  const symbol = crypto.value;
+  
 
-  buyButton.addEventListener('click', buy(notional, symbol));
+  buyButton.addEventListener('click', () => {
+    const notional = amount.value;
+    const symbol = crypto.value;
+    buy(notional, symbol);
+  });
   
   liveBitcoinPull();
-  setInterval(updateData, 5000);
+  updateData();
+  setInterval(updateData, 3000);
 });
 
+// Popup indicating purchase successful
+function purchaseComplete(data) {
+  const coinPurchased = (data.symbol === 'BTCUSD') ? 'Bitcoin' : 'Etherium';
+  const qty = data.qty;
+  const pricing = data.notional;
 
+  const purchaseConfirmation = document.createElement('div');
+  purchaseConfirmation.setAttribute('class', 'purchase-confirmation fade animate');
+  purchaseConfirmation.innerHTML = `<span id="PC">Purchase Complete!</span><br><span id="purch">You purchased ${qty} ${coinPurchased} </span><br><span id="total">Total Cost: $${pricing}</span>`;
+
+  const main = document.querySelector('.main');
+  const title = document.querySelector('.title');
+
+  main.appendChild(purchaseConfirmation, title);
+
+  setTimeout((node) => {
+    node.remove();
+  }, 4500, purchaseConfirmation);
+}
+
+
+/**
+ * Order ID - client_order_id
+ * Quantity - qty
+ * Type - symbol
+ */
 
 //Sets up stream and 
 function updateData() {
   InfoPull(accountURL);
   InfoPull(positionURL);
+  //asyncInfoPull(accountURL);
 }
 
 function buy(notional, symbol) {
@@ -52,24 +83,29 @@ function buy(notional, symbol) {
     side : side,
     time_in_force : time_in_force
   }
-
-  const purchase = buyCoins(ordersURL, bodyObject);
+  buyCoins(ordersURL, bodyObject);
 }
 
 async function buyCoins(url, data) {
-  const response = await fetch(url,{
+  await fetch(url,{
     method: 'POST',
     headers : headers,
     body : JSON.stringify(data)
-  });
-
-  return response.json();
+  }).then((response) => {
+    return response.json();
+  }).then((response) => {
+    if (response.status === 'accepted' || response.status === 'filled') {
+      console.log("Order accepted");
+      purchaseComplete(response);
+    };
+  })
 }
 
 function InfoPull(url) {
   fetch(url, {
     method : 'GET',
-    headers : headers
+    headers : headers,
+    cache : 'no-cache'
   }).then((response) => {
     return response.json();
   }).then((response) => {
@@ -85,10 +121,7 @@ async function asyncInfoPull(url) {
   });
 
   const data = response.json();
-  
-  if (Array.isArray(data)) return positionInfoPopulate(data); 
-    else return accountInfoPopulate(data);
-}
+  }
 
 function positionInfoPopulate(accountInfo) {
   const BTHholdings = document.querySelector('#btcholdings');
@@ -96,7 +129,7 @@ function positionInfoPopulate(accountInfo) {
   
   let BTHp = 0;
   let ETHp = 0;
-  console.log(accountInfo);
+
   for (let pos of accountInfo) {
     if (pos.symbol === 'BTCUSD') BTHp = pos.qty;
     if (pos.symbol === 'ETHUSD') ETHp = pos.qty;
@@ -110,7 +143,7 @@ function positionInfoPopulate(accountInfo) {
 function accountInfoPopulate(accountInfo) {
   const buyingPower = document.querySelector('#buyingpower');
 
-  buyingPower.innerText = `Buying power: ${accountInfo.buying_power}`;
+  buyingPower.innerText = `Cash Balance: ${accountInfo.buying_power}`;
 }
 
 
@@ -118,7 +151,6 @@ function liveBitcoinPull() {
   const listener = new WebSocket(streamURL);
   
   listener.addEventListener('message', (msg) => {
-    // console.log(msg.data);
     if (msg.data === '[{"T":"success","msg":"connected"}]') {
       listener.send(`{"action":"auth","key":"${publicKey}","secret":"${privateKey}"}`)
     }
@@ -151,26 +183,3 @@ function liveBitcoinPull() {
     return [btc, eth];
   }
 }
-
-
-/**
- * buy
- *  -top 5 coins 
- *     -BTC Bitcoin
- *     -ETH Etherium
- *     -USDT Tether
- *     -BNB Binance Coin
- *     -USDC U.S. Dollar Coin 
- *  -either dollars or # of coins
- * 
- * get price of coins
- *  -input type of coin
- *  -output coin price
- * 
- * 
- * 
- * stretch:
- * sell
- *  -either dollars or # of coins
- * 
- */
